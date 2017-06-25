@@ -105,7 +105,7 @@ int parseNext (const char **infile, const char **outfile, const char **time, con
                 break;
         }
     }
-    return !(argc == 4);
+    return !(argc >= 3); /* compile, outfile, and executable mandatory. Time and input files are not */
 }
 
 /* Finds next argument in buffer, appends null and assigns head to string pointer. Increments buffer pointer. Returns argument character */

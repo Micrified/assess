@@ -17,6 +17,40 @@
  ********************************************************************************
  */
 
+/* Prints the provided buffer, outputs whitespace in character representation. */
+static void printline (const char *buf, FILE *ofp) {
+    int c;
+    do {
+        c = *(buf++);
+        if (isspace(c)) {
+            switch (c) {
+                case ' ':
+                    fprintf(ofp, C_TAF(DIM, BLK, "_"));
+                    break;
+                case '\t':
+                    fprintf(ofp, C_TAF(DIM, BLK, "\\t"));
+                    break;
+                case '\n':
+                    fprintf(ofp, C_TAF(DIM, BLK, "\\n"));
+                    break;
+                case '\v':
+                    fprintf(ofp, C_TAF(DIM, BLK, "\\v"));
+                    break;
+                case '\f':
+                    fprintf(ofp, C_TAF(DIM, BLK, "\\f"));
+                    break;
+                case '\r':
+                    fprintf(ofp, C_TAF(DIM, BLK, "\\r"));
+                    break;
+            }
+        } else {
+            putc(c, ofp);
+        }
+        
+    } while (c != '\n');
+    fflush(ofp);
+}
+
 /* Returns 0 if lines are identical. Else returns column number of first differing 
  character */
 static int diffline (const char *abuf, const char *bbuf) {
@@ -43,7 +77,11 @@ int diff (const char *af, const char *bf, FILE *afp, FILE *bfp, FILE *ofp) {
         if ((ncol = diffline(abuf, bbuf))) {
             last = nline;
             if (ofp != NULL) {
-                fprintf(ofp, "difference on line %zu, column %zu\n(%s): %s(%s): %s", nline, ncol, af, abuf, bf, bbuf);
+                fprintf(ofp, "difference on line %zu, column %zu\n(%s): ", nline, ncol, af);
+                printline(abuf, ofp);
+                fprintf(ofp, "\n(%s): ", bf);
+                printline(bbuf, ofp);
+                putchar('\n');
             }
         }
     } while (a_state != NULL && b_state != NULL);

@@ -115,9 +115,9 @@ int main (int argc, const char *argv[]) {
         }
         assessTestFile(flags.withFile);
     } else {
-        if (argc == 1) {
+        if (argc == 1 || (argc == 2 && flags.withDiff)) {
             assessTestFile(DEF_EXT);
-        } else if (!(flags.withIn && flags.withOut && flags.withComp && flags.withEx)) {
+        } else if (!(flags.withOut && flags.withComp && flags.withEx)) {
             fprintf(stderr, C_TAF(BOL, RED, "error:") " incomplete/missing/bad arguments!\n");
         } else {
             assessProgram(flags.withIn, flags.withOut, flags.withTime, flags.withComp, flags.withEx);
@@ -203,7 +203,7 @@ static const char *getflags (int argc, const char *argv[]) {
 
 /* Reads the current time to the timespec object provided. */
 static void gettime (struct timespec *t) {
-    #ifdef __MACH__ 
+#ifdef __MACH__
     clock_serv_t cclock;
     mach_timespec_t mts;
     host_get_clock_service(mach_host_self(), REALTIME_CLOCK, &cclock);
@@ -211,9 +211,9 @@ static void gettime (struct timespec *t) {
     mach_port_deallocate(mach_task_self(), cclock);
     t->tv_sec = mts.tv_sec;
     t->tv_nsec = mts.tv_nsec;
-    #else
+#else
     clock_gettime(CLOCK_MONOTONIC, t);
-    #endif
+#endif
 }
 
 /* Outputs a formatted assessment result to stdout. */
@@ -226,7 +226,7 @@ static void printResult (const char *executable, int dline, double elapsed, doub
         if (elapsed > tmax / 1000) {
             fprintf(stdout, "Prgm:" C_TAF(BOL, MAG, "%-15s") " Status: " C_TAF(BOL, YEL, "Time Limit Exceeded (%fs > %fs)") ".\n", executable, elapsed, tmax / 1000);
         } else {
-            fprintf(stdout, "Prgm:" C_TAF(BOL, MAG, "%-15s") " Status: " C_TAF(BOL, GRN, "Passed (%fs <= %fs)") ".\n", executable, elapsed, tmax);
+            fprintf(stdout, "Prgm:" C_TAF(BOL, MAG, "%-15s") " Status: " C_TAF(BOL, GRN, "Passed (%fs <= %fs)") ".\n", executable, elapsed, tmax / 1000);
         }
     } else {
         fprintf(stdout, "Prgm:" C_TAF(BOL, MAG, "%-15s") " Status: " C_TAF(BOL, GRN, "Passed") ".\n", executable);
@@ -235,14 +235,14 @@ static void printResult (const char *executable, int dline, double elapsed, doub
 
 /* Performs an assessment of the given file and writes the result to stdout. Returns zero if successful. Else returns nonzero. */
 int assessProgram (const char *infile, const char *outfile, const char *time, const char *compileInstruction, const char *executable) {
-    FILE *ifp, *ofp, *xfp;
+    FILE *ifp = NULL, *ofp, *xfp;
     long dline, exitcode;
     struct timespec tic, toc;
     double elapsed, tmax = 0;
     
-    /* If input/output couldn't be read, time was specified incorrectly, 
+    /* If input/output couldn't be read, time was specified incorrectly,
      or exection instruction is too long for the buffer, then fail. */
-    if ((ifp = fopen(infile, "r")) == NULL) {
+    if (infile != NULL && (ifp = fopen(infile, "r")) == NULL) { // infile is optional, throw error on non-null.
         fprintf(stderr, C_TAF(BOL, RED, "error:") " could not read file %s.\n", infile);
         return 1;
     } else if ((ofp = fopen(outfile, "r")) == NULL) {
@@ -253,17 +253,19 @@ int assessProgram (const char *infile, const char *outfile, const char *time, co
         return 1;
     } else if ((exitcode = system(compileInstruction)) != 0) {
         fprintf(stderr, C_TAF(BOL, RED, "error:") " received nonzero exit code (%ld) for compile instruction: %s\n",
-                 exitcode, compileInstruction);
+                exitcode, compileInstruction);
         return 1;
-    } else if (strlen(executable) + strlen(infile) + 6 >= MAXLINE) { // constant (6) = "./" + " < " + '\0'
+    } else if (strlen(executable) + (infile ? strlen(infile) : 0) + 6 >= MAXLINE) { // constant (6) = "./" + " < " + '\0'
         fprintf(stderr, C_TAF(BOL, RED, "error:") " execution command exceeds buffer!\n");
         return 1;
     } else {
         cbuf[0] = '\0';
         strcat(cbuf, "./");
         strcat(cbuf, executable);
-        strcat(cbuf, " < ");
-        strcat(cbuf, infile);
+        if (infile) {
+            strcat(cbuf, " < ");
+            strcat(cbuf, infile);
+        }
     }
     
     /* Initialize timer, execute program and read stdout to xfp */
@@ -280,9 +282,11 @@ int assessProgram (const char *infile, const char *outfile, const char *time, co
     
     /* Output results */
     printResult(executable, dline, elapsed, tmax);
-
+    
     fclose(ofp);
-    fclose(ifp);
+    if (infile != NULL) {
+        fclose(ifp);
+    }
     
     return (dline || (time && elapsed > tmax));
 }
@@ -303,7 +307,7 @@ int assessTestFile (const char *f) {
     
     while (getNext()) {
         if (parseNext(&infile, &outfile, &time, &compileInstruction, &executable)) {
-            fprintf(stderr, C_TAF(BOL, RED, "error:") " Couldn't read line %d of file #c%s#c\n", getLine(), f);
+            fprintf(stderr, C_TAF(BOL, RED, "error:") " Couldn't read line %d of file %s\n", getLine(), f);
         } else {
             assessProgram(infile, outfile, time, compileInstruction, executable);
         }
